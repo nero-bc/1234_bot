@@ -5,12 +5,11 @@ import sys
 import math
 import time
 import asyncio
-import logging 
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
 from pyrogram import Client, filters
-from plugins import start
-from plugins import extractor 
+from plugins import start, extractor
 from pyrogram.errors import FloodWait
 
 app = Flask(__name__)
@@ -46,7 +45,7 @@ def trim_video(input_file, start_time, end_time, output_file):
     ]
     success, output = run_command(command)
     if not success:
-        print(f"Failed to trim video: {output}", file=sys.stderr)
+        logging.error(f"Failed to trim video: {output}")
     return success
 
 async def get_video_details(file_path):
@@ -58,6 +57,7 @@ async def get_video_details(file_path):
             key, value = line.split('=')
             details[key] = value
         return details
+    logging.error(f"Failed to retrieve video details for {file_path}")
     return None
 
 @Client.on_message(filters.command("remove_audio"))
@@ -69,33 +69,38 @@ async def handle_remove_audio(client, message):
     media = message.reply_to_message.video or message.reply_to_message.document
     downloading_message = await message.reply_text("Downloading media...")
 
-    file_path = await client.download_media(media)
-    await downloading_message.edit_text("Download complete. Processing...")
+    try:
+        file_path = await client.download_media(media)
+        await downloading_message.edit_text("Download complete. Processing...")
 
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    output_file_no_audio = tempfile.mktemp(suffix=f"_{base_name}_noaudio.mp4")
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        output_file_no_audio = tempfile.mktemp(suffix=f"_{base_name}_noaudio.mp4")
 
-    loop = asyncio.get_event_loop()
-    success = await loop.run_in_executor(executor, remove_audio, file_path, output_file_no_audio)
+        loop = asyncio.get_event_loop()
+        success = await loop.run_in_executor(executor, remove_audio, file_path, output_file_no_audio)
 
-    if success:
-        details = await get_video_details(output_file_no_audio)
-        if details:
-            duration = details.get('duration', 'Unknown')
-            size = details.get('size', 'Unknown')
-            size_mb = round(int(size) / (1024 * 1024), 2)
-            duration_sec = round(float(duration))
-            caption = f"Here's your cleaned video file. Duration: {duration_sec} seconds. Size: {size_mb} MB"
+        if success:
+            details = await get_video_details(output_file_no_audio)
+            if details:
+                duration = details.get('duration', 'Unknown')
+                size = details.get('size', 'Unknown')
+                size_mb = round(int(size) / (1024 * 1024), 2)
+                duration_sec = round(float(duration))
+                caption = f"Here's your cleaned video file. Duration: {duration_sec} seconds. Size: {size_mb} MB"
+            else:
+                caption = "Here's your cleaned video file."
+
+            await client.send_video(chat_id=message.chat.id, video=output_file_no_audio, caption=caption)
+            await message.reply_text("Upload complete.")
         else:
-            caption = "Here's your cleaned video file."
+            await message.reply_text("Failed to process the video. Please try again later.")
 
-        await client.send_video(chat_id=message.chat.id, video=output_file_no_audio, caption=caption)
-        await message.reply_text("Upload complete.")
-    else:
-        await message.reply_text("Failed to process the video. Please try again later.")
+        os.remove(file_path)
+        os.remove(output_file_no_audio)
 
-    os.remove(file_path)
-    os.remove(output_file_no_audio)
+    except Exception as e:
+        logging.error(f"Error in handle_remove_audio: {e}")
+        await message.reply_text("An error occurred while processing the video. Please try again later.")
 
 @Client.on_message(filters.command("trim_video"))
 async def handle_trim_video(client, message):
@@ -113,33 +118,38 @@ async def handle_trim_video(client, message):
     media = message.reply_to_message.video or message.reply_to_message.document
     downloading_message = await message.reply_text("Downloading media...")
 
-    file_path = await client.download_media(media)
-    await downloading_message.edit_text("Download complete. Processing...")
+    try:
+        file_path = await client.download_media(media)
+        await downloading_message.edit_text("Download complete. Processing...")
 
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
-    output_file_trimmed = tempfile.mktemp(suffix=f"_{base_name}_trimmed.mp4")
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        output_file_trimmed = tempfile.mktemp(suffix=f"_{base_name}_trimmed.mp4")
 
-    future = executor.submit(trim_video, file_path, start_time, end_time, output_file_trimmed)
-    success = future.result()
+        loop = asyncio.get_event_loop()
+        success = await loop.run_in_executor(executor, trim_video, file_path, start_time, end_time, output_file_trimmed)
 
-    if success:
-        details = await get_video_details(output_file_trimmed)
-        if details:
-            duration = details.get('duration', 'Unknown')
-            size = details.get('size', 'Unknown')
-            size_mb = round(int(size) / (1024 * 1024), 2)
-            duration_sec = round(float(duration))
-            caption = f"Here's your trimmed video file. Duration: {duration_sec} seconds. Size: {size_mb} MB"
+        if success:
+            details = await get_video_details(output_file_trimmed)
+            if details:
+                duration = details.get('duration', 'Unknown')
+                size = details.get('size', 'Unknown')
+                size_mb = round(int(size) / (1024 * 1024), 2)
+                duration_sec = round(float(duration))
+                caption = f"Here's your trimmed video file. Duration: {duration_sec} seconds. Size: {size_mb} MB"
+            else:
+                caption = "Here's your trimmed video file."
+
+            await client.send_video(chat_id=message.chat.id, video=output_file_trimmed, caption=caption)
+            await message.reply_text("Upload complete.")
         else:
-            caption = "Here's your trimmed video file."
+            await message.reply_text("Failed to process the video. Please try again later.")
 
-        await client.send_video(chat_id=message.chat.id, video=output_file_trimmed, caption=caption)
-        await message.reply_text("Upload complete.")
-    else:
-        await message.reply_text("Failed to process the video. Please try again later.")
+        os.remove(file_path)
+        os.remove(output_file_trimmed)
 
-    os.remove(file_path)
-    os.remove(output_file_trimmed)
+    except Exception as e:
+        logging.error(f"Error in handle_trim_video: {e}")
+        await message.reply_text("An error occurred while processing the video. Please try again later.")
 
 @app.route('/process', methods=['POST'])
 def process_request():
@@ -148,16 +158,21 @@ def process_request():
     output_file = data['output_file']
     action = data['action']
 
-    if action == 'remove_audio':
-        success = executor.submit(remove_audio, input_file, output_file).result()
-    elif action == 'trim_video':
-        start_time = data['start_time']
-        end_time = data['end_time']
-        success = executor.submit(trim_video, input_file, start_time, end_time, output_file).result()
-    else:
-        return jsonify({"error": "Invalid action"}), 400
+    try:
+        if action == 'remove_audio':
+            success = executor.submit(remove_audio, input_file, output_file).result()
+        elif action == 'trim_video':
+            start_time = data['start_time']
+            end_time = data['end_time']
+            success = executor.submit(trim_video, input_file, start_time, end_time, output_file).result()
+        else:
+            return jsonify({"error": "Invalid action"}), 400
 
-    if not success:
-        return jsonify({"status": "failure", "message": "Processing failed"}), 500
+        if not success:
+            return jsonify({"status": "failure", "message": "Processing failed"}), 500
 
-    return jsonify({"status": "success", "output_file": output_file})
+        return jsonify({"status": "success", "output_file": output_file})
+
+    except Exception as e:
+        logging.error(f"Error in process_request: {e}")
+        return jsonify({"status": "failure", "message": "Internal server error"}), 500
