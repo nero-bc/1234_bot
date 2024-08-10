@@ -10,6 +10,7 @@ from helper.download import download_file, DATA
 from helper.ffmpeg import extract_audio, extract_subtitle
 import logging
 
+# Configure logging
 logging.basicConfig(filename='app.log', level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 @Client.on_callback_query()
@@ -37,38 +38,43 @@ async def cb_handler(client, query):
             reply_markup=keyboard,
             disable_web_page_preview=True
         )
-        return
+    
     elif data == "help":
         await query.answer()
-        keyboard = InlineKeyboardMarkup([[
-                # Don't change the owner details if you change the bot not work  #
-                InlineKeyboardButton("😈 ᴏᴡɴᴇʀ", url="https://t.me/Devilo7")
-                ],[
-                InlineKeyboardButton("❌ Cʟᴏꜱᴇ", callback_data = "close"),
-                InlineKeyboardButton("⏪ Bᴀᴄᴋ", callback_data = "start")
-            ]]) 
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("😈 Owner", url="https://t.me/Devilo7")
+            ],
+            [
+                InlineKeyboardButton("❌ Close", callback_data="close"),
+                InlineKeyboardButton("⏪ Back", callback_data="start_data")
+            ]
+        ])
         
         await query.message.edit_text(
             text=Txt.HELP_TXT,
             disable_web_page_preview=True,
+            reply_markup=keyboard
         )
-        return
+    
     elif data == "about":
         await query.answer()
-        keyboard = InlineKeyboardMarkup([[
-                #⚠️ Don't change the owner details if you change the bot not work ⚠️ #
-                InlineKeyboardButton("😈 ᴏᴡɴᴇʀ", url="https://t.me/Devilo7")
-                ],[
-                InlineKeyboardButton("❌ Cʟᴏꜱᴇ", callback_data = "close"),
-                InlineKeyboardButton("⏪ Bᴀᴄᴋ", callback_data = "start")
-            ]])  
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("😈 Owner", url="https://t.me/Devilo7")
+            ],
+            [
+                InlineKeyboardButton("❌ Close", callback_data="close"),
+                InlineKeyboardButton("⏪ Back", callback_data="start_data")
+            ]
+        ])  
 
         await query.message.edit_text(
-            text=Txt.ABOUT_TXT.format(client.mention),
-            disable_web_page_preview = True,
+            text=Txt.ABOUT_TXT.format(query.from_user.mention),
+            disable_web_page_preview=True,
+            reply_markup=keyboard
         )
-        return
-
+    
     elif data == "download_file":
         await query.answer()
         await query.message.delete()
@@ -103,9 +109,9 @@ async def cb_handler(client, query):
                 ),
                 show_alert=True
             )
-        except:
+        except KeyError:
             await query.answer(
-                "Processing your file...", msg,
+                "Processing your file...",
                 show_alert=True
             )
 
@@ -137,6 +143,6 @@ async def cb_handler(client, query):
                 "Cancelled...",
                 show_alert=True
             ) 
-        except:
+        except KeyError:
             await query.answer() 
-            await query.message.edit_text("**Details Not Found**")        
+            await query.message.edit_text("**Details Not Found**") 
