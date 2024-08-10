@@ -7,9 +7,11 @@ import time
 from config import Config
 from progress import progress
 
+# Define the download directory
 DOWNLOAD_DIR = "/content/Drive_bot/Drive_bot/downloads/"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+# Dictionaries to keep track of user data
 user_media_files = {}
 user_merge_mode = {}
 
@@ -72,7 +74,7 @@ async def merge_audios(client, message, user_id):
 
     command = [
         "ffmpeg",
-        "-y",  # Add the '-y' flag to overwrite existing files
+        "-y",  # Overwrite existing files without asking
         "-i", audio1,
         "-i", audio2,
         "-filter_complex", "[0:0][1:0]concat=n=2:v=0:a=1[out]",
@@ -109,14 +111,17 @@ async def merge_audios(client, message, user_id):
         await progress_message.edit_text(f"Failed to merge: {stderr.decode()}")
 
     # Clean up
-    os.remove(audio1)
-    os.remove(audio2)
-    if os.path.exists(output_path):
-        os.remove(output_path)
+    try:
+        os.remove(audio1)
+        os.remove(audio2)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+    except Exception as e:
+        await message.reply_text(f"Error during cleanup: {e}")
 
     # Remove user data
-    del user_media_files[user_id]
-    del user_merge_mode[user_id]
+    user_media_files.pop(user_id, None)
+    user_merge_mode.pop(user_id, None)
 
 async def merge_video_and_audio(client, message, user_id):
     video, audio = user_media_files[user_id]
@@ -124,7 +129,7 @@ async def merge_video_and_audio(client, message, user_id):
 
     command = [
         "ffmpeg",
-        "-y",  # Add the '-y' flag to overwrite existing files
+        "-y",  # Overwrite existing files without asking
         "-i", video,
         "-i", audio,
         "-c:v", "copy",
@@ -162,14 +167,17 @@ async def merge_video_and_audio(client, message, user_id):
         await progress_message.edit_text(f"Failed to merge: {stderr.decode()}")
 
     # Clean up
-    os.remove(video)
-    os.remove(audio)
-    if os.path.exists(output_path):
-        os.remove(output_path)
+    try:
+        os.remove(video)
+        os.remove(audio)
+        if os.path.exists(output_path):
+            os.remove(output_path)
+    except Exception as e:
+        await message.reply_text(f"Error during cleanup: {e}")
 
     # Remove user data
-    del user_media_files[user_id]
-    del user_merge_mode[user_id]
+    user_media_files.pop(user_id, None)
+    user_merge_mode.pop(user_id, None)
 
 @Client.on_message(filters.command("cancel"))
 async def cancel(client, message: Message):
